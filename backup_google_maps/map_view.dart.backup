@@ -1,0 +1,304 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'services/location_service.dart';
+import 'services/firebase_service.dart';
+import 'models/message_model.dart';
+
+class MapView extends StatefulWidget {
+  const MapView({super.key});
+
+  @override
+  State<MapView> createState() => _MapViewState();
+}
+
+class _MapViewState extends State<MapView> {
+  final Completer<GoogleMapController> _controller = Completer();
+  final LocationService _locationService = LocationService();
+  final FirebaseService _firebaseService = FirebaseService();
+  
+  // Real-time Messages
+  List<MessageModel> _messages = [];
+  final List<MessageModel> _optimisticMessages = []; // Local queue
+  Set<Marker> _allMarkers = {}; // All markers including user and messages
+  LatLng? _userGpsPosition; // Store actual GPS position
+  
+  // Subscriptions
+  StreamSubscription<Position>? _positionStream;
+  StreamSubscription<List<MessageModel>>? _messagesStream;
+  
+  CameraPosition _currentCameraPosition = const CameraPosition(
+    target: LatLng(37.7749, -122.4194),
+    zoom: 18, // Increased zoom for better marker visibility
+  );
+  
+  Timer? _localCleanupTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeLocation();
+    _startLocalCleanup();
+  }
+
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    _messagesStream?.cancel();
+    _localCleanupTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Removes expired messages from local state to clean up UI 
+  /// even if Firestore stream doesn't push a new update immediately.
+  void _startLocalCleanup() {
+    _localCleanupTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      setState(() {
+         _messages.removeWhere((m) => m.isExpired); // Uses 30s logic from Model
+         _optimisticMessages.removeWhere((m) => m.isExpired);
+      });
+    });
+  }
+
+  Future<void> _initializeLocation() async {
+    try {
+      Position pos = await _locationService.determinePosition();
+      final controller = await _controller.future;
+      LatLng initialPos = LatLng(pos.latitude, pos.longitude);
+      
+      controller.animateCamera(CameraUpdate.newCameraPosition(
+        CameraPosition(target: initialPos, zoom: 18),
+      ));
+      
+      // Update User Marker immediately
+      _updateUserMarker(initialPos);
+
+      // 1. Listen to position updates
+      _positionStream = _locationService.getPositionStream().listen((position) {
+         LatLng newPos = LatLng(position.latitude, position.longitude);
+         _updateUserMarker(newPos);
+         _updateMessageStream(newPos);
+      });
+      
+      // Initial stream setup
+      _updateMessageStream(initialPos);
+
+    } catch (e) {
+      debugPrint("Location error: $e");
+    }
+  }
+
+  void _updateMessageStream(LatLng center) {
+     _messagesStream?.cancel();
+     _messagesStream = _firebaseService.getNearbyMessages(center).listen((newMessages) {
+        if (mounted) {
+          setState(() {
+            // We merge new messages. 
+            _messages = newMessages; 
+            
+            // Cleanup optimistic messages that are now in the stream (dedup by text/time loop)
+            _optimisticMessages.removeWhere((opt) => 
+               _messages.any((real) => 
+                 real.text == opt.text && 
+                 real.timestamp.difference(opt.timestamp).inSeconds.abs() < 5
+               )
+            );
+            _updateAllMarkers();
+          });
+        }
+     });
+   }
+
+   void _updateUserMarker(LatLng pos) {
+     _userGpsPosition = pos;
+     _updateAllMarkers();
+   }
+   
+   void _updateAllMarkers() {
+     debugPrint("🔄 _updateAllMarkers called. Messages: ${_messages.length}, Optimistic: ${_optimisticMessages.length}");
+     
+     // Only create markers if we have a GPS position
+     if (_userGpsPosition == null) {
+       debugPrint("⚠️ No GPS position yet, skipping marker update");
+       return;
+     }
+     
+     Set<Marker> markers = {
+       Marker(
+         markerId: const MarkerId('me'),
+         position: _userGpsPosition!, // Use actual GPS position
+         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+         infoWindow: const InfoWindow(title: "Yo"),
+       )
+     };
+     
+     // Add all messages as markers
+     final allMessages = [..._messages, ..._optimisticMessages];
+     for (var msg in allMessages) {
+       markers.add(
+         Marker(
+           markerId: MarkerId(msg.id),
+           position: msg.position,
+           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+           infoWindow: InfoWindow(
+             title: msg.text,
+             snippet: "Hace ${DateTime.now().difference(msg.timestamp).inSeconds}s",
+           ),
+         ),
+       );
+       debugPrint("📍 Added marker for message: '${msg.text}' at ${msg.position.latitude}, ${msg.position.longitude}");
+     }
+     
+     debugPrint("✅ Total markers to display: ${markers.length}");
+     setState(() {
+       _allMarkers = markers;
+     });
+   }
+
+  void _sendMessage(String text) async {
+      debugPrint("📤 _sendMessage called with text: '$text'");
+      LatLng target; // Target position
+      
+      // User current position logic with guaranteed timeout
+      try {
+        debugPrint("📍 Attempting to get current position...");
+        Position userPos = await Geolocator.getCurrentPosition().timeout(
+          const Duration(seconds: 1),
+          onTimeout: () {
+            debugPrint("⏱️ GPS timeout after 1 second");
+            throw TimeoutException('GPS timeout');
+          },
+        );
+        target = LatLng(userPos.latitude, userPos.longitude);
+        debugPrint("✅ Got GPS position: ${target.latitude}, ${target.longitude}");
+        _updateUserMarker(target);
+      } catch (e) {
+         debugPrint("⚠️ GPS failed: $e. Using fallback position.");
+         // Use stored GPS position or camera position as fallback
+         target = _userGpsPosition ?? _currentCameraPosition.target;
+         debugPrint("📷 Using fallback position: ${target.latitude}, ${target.longitude}");
+      }
+
+      debugPrint("🎯 Creating optimistic message at: ${target.latitude}, ${target.longitude}");
+      
+      // Optimistic UI: Add to separate list
+      setState(() {
+        _optimisticMessages.add(MessageModel.mock(text, target));
+        debugPrint("➕ Added to optimistic list. Total optimistic: ${_optimisticMessages.length}");
+        _updateAllMarkers();
+      });
+
+      // Send to Firebase
+      debugPrint("🔥 Sending to Firebase...");
+      await _firebaseService.sendMessage(text, target);
+      debugPrint("✅ Sent to Firebase successfully");
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Combine all messages for display
+    final allMessages = [..._messages, ..._optimisticMessages];
+    
+    return Scaffold(
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: _currentCameraPosition,
+            myLocationEnabled: false,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            markers: _allMarkers,
+            onMapCreated: (controller) => _controller.complete(controller),
+            onCameraMove: (position) {
+              setState(() {
+                _currentCameraPosition = position;
+              });
+            },
+          ),
+          
+          // Debug overlay showing marker count
+          Positioned(
+            top: 20, left: 20,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '📍 Markers: ${_allMarkers.length}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '💬 Mensajes: ${allMessages.length}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  if (_userGpsPosition != null)
+                    Text(
+                      '📍 GPS: ${_userGpsPosition!.latitude.toStringAsFixed(4)}, ${_userGpsPosition!.longitude.toStringAsFixed(4)}',
+                      style: const TextStyle(color: Colors.greenAccent, fontSize: 10),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // UI Controls
+          Positioned(
+             bottom: 30, right: 20,
+             child: Column(
+               children: [
+                 FloatingActionButton(
+                   heroTag: "center",
+                   mini: true,
+                   backgroundColor: Colors.white,
+                   child: const Icon(Icons.my_location, color: Colors.blueGrey),
+                   onPressed: _initializeLocation,
+                 ),
+                 const SizedBox(height: 16),
+                 FloatingActionButton(
+                   heroTag: "msg",
+                   onPressed: () => _showInputDialog(context),
+                   child: const Icon(Icons.chat_bubble),
+                 ),
+               ],
+             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showInputDialog(BuildContext context) {
+    final textController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: TextField(
+          controller: textController,
+          maxLength: 40,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: "Di algo..."),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
+          ElevatedButton(
+            onPressed: () {
+              if (textController.text.isNotEmpty) {
+                _sendMessage(textController.text);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text("Enviar"),
+          )
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "434629058750",
+    "project_id": "jv-maps-2026-app",
+    "storage_bucket": "jv-maps-2026-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434629058750:android:8b68cab0278b6c325dbeef",
+        "android_client_info": {
+          "package_name": "com.example.geo_social_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQ1c55JzgD_cCpqOoPqpklvG9tSHNgaFI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

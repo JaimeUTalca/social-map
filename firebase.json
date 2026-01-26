@@ -1,0 +1,26 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "jv-maps-2026-app",
+          "appId": "1:434629058750:android:8b68cab0278b6c325dbeef",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "jv-maps-2026-app",
+          "configurations": {
+            "android": "1:434629058750:android:8b68cab0278b6c325dbeef",
+            "ios": "1:434629058750:ios:e812073072b6e73f5dbeef",
+            "web": "1:434629058750:web:8118f11febdbe0945dbeef"
+          }
+        }
+      }
+    }
+  },
+  "functions": {
+    "source": "functions"
+  }
+}

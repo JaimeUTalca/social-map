@@ -1,0 +1,41 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+class MessageModel {
+  final String id;
+  final String text;
+  final LatLng position;
+  final DateTime timestamp;
+
+  MessageModel({
+    required this.id,
+    required this.text,
+    required this.position,
+    required this.timestamp,
+  });
+
+  bool get isExpired => DateTime.now().difference(timestamp).inSeconds > 30;
+
+  // Factory for Firestore
+  factory MessageModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final GeoPoint geo = data['position'] as GeoPoint;
+    
+    return MessageModel(
+      id: doc.id,
+      text: data['text'] ?? '',
+      position: LatLng(geo.latitude, geo.longitude),
+      timestamp: (data['timestamp'] as Timestamp).toDate(),
+    );
+  }
+
+  // Factory for Mock data
+  factory MessageModel.mock(String text, LatLng pos) {
+    return MessageModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      text: text,
+      position: pos,
+      timestamp: DateTime.now(),
+    );
+  }
+}

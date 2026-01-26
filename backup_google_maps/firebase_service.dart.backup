@@ -1,0 +1,77 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geoflutterfire2/geoflutterfire2.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
+import '../models/message_model.dart';
+
+class FirebaseService {
+  final _firestore = FirebaseFirestore.instance;
+  final _geo = GeoFlutterFire();
+
+  /// Sends a message to Firestore with GeoHash
+  Future<void> sendMessage(String text, LatLng position) async {
+    GeoFirePoint myLocation = _geo.point(
+      latitude: position.latitude, 
+      longitude: position.longitude
+    );
+
+    debugPrint("Sending message to Firestore: $text at ${myLocation.data}");
+    await _firestore.collection('mensajes').add({
+      'text': text,
+      'position': myLocation.data,
+      'timestamp': FieldValue.serverTimestamp(),
+    }).then((_) => debugPrint("Message sent successfully"))
+      .catchError((e) => debugPrint("Error sending message: $e"));
+  }
+
+  /// Listens for messages within 1km radius
+  /// Filters out messages older than 1 minute to prevent clutter
+  Stream<List<MessageModel>> getNearbyMessages(LatLng userLocation) {
+    GeoFirePoint center = _geo.point(
+      latitude: userLocation.latitude, 
+      longitude: userLocation.longitude
+    );
+
+    var collectionReference = _firestore.collection('mensajes');
+
+    // Radius in km
+    double radius = 1; 
+    String field = 'position';
+
+    Stream<List<DocumentSnapshot>> stream = _geo.collection(collectionRef: collectionReference)
+        .within(center: center, radius: radius, field: field);
+
+    return stream.map((List<DocumentSnapshot> documentList) {
+      debugPrint("Stream updated: ${documentList.length} documents found");
+      final now = DateTime.now();
+      List<MessageModel> messages = [];
+      
+      for (DocumentSnapshot doc in documentList) {
+        if (doc.data() == null) continue;
+        
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          // Handle potential null timestamp (latency compensation)
+          final timestampRaw = data['timestamp'];
+          DateTime? timestamp;
+          
+          if (timestampRaw is Timestamp) {
+            timestamp = timestampRaw.toDate();
+          } else if (timestampRaw == null) {
+            timestamp = DateTime.now(); // Optimistic update
+          }
+
+          if (timestamp != null) {
+             // Filter: Only allow messages younger than 60 seconds
+             if (now.difference(timestamp).inSeconds < 60) {
+               messages.add(MessageModel.fromFirestore(doc));
+             }
+          }
+        } catch (e) {
+          // Skip malformed documents
+        }
+      }
+      return messages;
+    });
+  }
+}
