@@ -9,8 +9,8 @@ plugins {
 }
 
 android {
-    namespace = "com.example.geo_social_app"
-    compileSdk = 34
+    namespace = "cl.utalca.socialmap"
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

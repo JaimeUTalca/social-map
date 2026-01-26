@@ -1,5 +1,5 @@
-name: geo_social_app
-description: "A new Flutter project."
+name: social_map
+description: "Aplicación de mensajería geo-social con mensajes efímeros basados en ubicación"
 publish_to: 'none'
 version: 1.0.0+1
 
