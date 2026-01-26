@@ -169,16 +169,15 @@ flutter pub run flutter_launcher_icons
 ### Configuración de Google AdMob
 
 > [!IMPORTANT]
-> La aplicación está configurada con **IDs de prueba de Google AdMob**. Debes reemplazarlos con tus propios IDs de producción antes de publicar en Play Store.
+> La aplicación está configurada con **IDs de producción de AdMob**. Los anuncios están listos para generar ingresos.
 
 #### Estado Actual
 
-✅ **AdMob está activado** y funcionando con IDs de prueba de Google.
+✅ **AdMob está activado** y funcionando con IDs de producción.
 
-**IDs de Prueba Actuales:**
-- **App ID (Android):** `ca-app-pub-3940256099942544~3347511713`
-- **Banner Ad Unit ID (Android):** `ca-app-pub-3940256099942544/6300978111`
-- **Banner Ad Unit ID (iOS):** `ca-app-pub-3940256099942544/2934735716`
+**IDs de Producción Configurados:**
+- **App ID (Android):** `ca-app-pub-4566173049235624~9505042546`
+- **Banner Ad Unit ID (Android):** `ca-app-pub-4566173049235624/3975499794`
 
 #### Configuración para Producción
 

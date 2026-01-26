@@ -82,8 +82,8 @@ class _MapViewState extends State<MapView> {
   void _loadBannerAd() {
     _bannerAd = BannerAd(
       adUnitId: defaultTargetPlatform == TargetPlatform.android
-          ? 'ca-app-pub-3940256099942544/6300978111' 
-          : 'ca-app-pub-3940256099942544/2934735716', // Test ID Android / iOS
+          ? 'ca-app-pub-4566173049235624/3975499794' // Production ID
+          : 'ca-app-pub-4566173049235624/3975499794', // Same ID for iOS (create separate if needed)
       request: const AdRequest(),
       size: AdSize.banner,
       listener: BannerAdListener(

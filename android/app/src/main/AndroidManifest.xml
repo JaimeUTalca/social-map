@@ -6,10 +6,10 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyDQvg6A3cvgELafSdpbcNrmEwcOj-lUAO4"/>
-        <!-- Google AdMob App ID (Test ID) -->
+        <!-- Google AdMob App ID (Production) -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="ca-app-pub-4566173049235624~9505042546"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
