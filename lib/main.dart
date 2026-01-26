@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';  // Temporarily disabled
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'firebase_options.dart';
 import 'map_view.dart';
 
@@ -18,7 +18,7 @@ void main() async {
   );
   
   // Initialize Google Mobile Ads
-  // MobileAds.instance.initialize();  // Temporarily disabled
+  MobileAds.instance.initialize();
   
   runApp(const MyApp());
 }

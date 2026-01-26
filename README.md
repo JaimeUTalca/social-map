@@ -60,6 +60,9 @@ Social Map es una aplicación innovadora que combina mensajería instantánea co
 - **permission_handler** (^11.3.1) - Gestión de permisos
 - **custom_info_window** (^1.0.1) - Ventanas de información personalizadas
 
+### Monetización
+- **google_mobile_ads** (^5.0.0) - Publicidad con Google AdMob
+
 ## 📋 Requisitos Previos
 
 - Flutter SDK 3.2.0 o superior
@@ -163,9 +166,80 @@ El proyecto usa `flutter_launcher_icons` para generar iconos de la aplicación:
 flutter pub run flutter_launcher_icons
 ```
 
+### Configuración de Google AdMob
+
+> [!IMPORTANT]
+> La aplicación está configurada con **IDs de prueba de Google AdMob**. Debes reemplazarlos con tus propios IDs de producción antes de publicar en Play Store.
+
+#### Estado Actual
+
+✅ **AdMob está activado** y funcionando con IDs de prueba de Google.
+
+**IDs de Prueba Actuales:**
+- **App ID (Android):** `ca-app-pub-3940256099942544~3347511713`
+- **Banner Ad Unit ID (Android):** `ca-app-pub-3940256099942544/6300978111`
+- **Banner Ad Unit ID (iOS):** `ca-app-pub-3940256099942544/2934735716`
+
+#### Configuración para Producción
+
+**Paso 1: Crear cuenta AdMob**
+
+1. Ve a [Google AdMob](https://admob.google.com/)
+2. Crea una cuenta o inicia sesión
+3. Acepta los términos y condiciones
+
+**Paso 2: Crear aplicación en AdMob**
+
+1. En el panel de AdMob, haz clic en "Apps" → "Add App"
+2. Selecciona la plataforma (Android/iOS)
+3. Ingresa el nombre de tu aplicación
+4. Copia el **App ID** que se genera (formato: `ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY`)
+
+**Paso 3: Crear unidad de anuncios**
+
+1. Dentro de tu aplicación en AdMob, ve a "Ad units" → "Add ad unit"
+2. Selecciona "Banner"
+3. Configura el nombre y opciones
+4. Copia el **Ad Unit ID** (formato: `ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY`)
+
+**Paso 4: Actualizar el código**
+
+1. **AndroidManifest.xml** (`android/app/src/main/AndroidManifest.xml`):
+   ```xml
+   <meta-data
+       android:name="com.google.android.gms.ads.APPLICATION_ID"
+       android:value="TU-APP-ID-AQUI"/>
+   ```
+
+2. **map_view.dart** (`lib/map_view.dart`, línea ~84):
+   ```dart
+   adUnitId: defaultTargetPlatform == TargetPlatform.android
+       ? 'TU-AD-UNIT-ID-ANDROID' 
+       : 'TU-AD-UNIT-ID-IOS',
+   ```
+
+3. **Info.plist** (iOS, `ios/Runner/Info.plist`):
+   ```xml
+   <key>GADApplicationIdentifier</key>
+   <string>TU-APP-ID-AQUI</string>
+   ```
+
+> [!WARNING]
+> **NUNCA publiques la aplicación con IDs de prueba**. Google puede suspender tu cuenta de AdMob si detecta IDs de prueba en producción.
+
+> [!TIP]
+> Puedes probar los anuncios reales usando tu dispositivo de prueba. Consulta la [documentación de AdMob](https://developers.google.com/admob/android/test-ads#enable_test_devices) para agregar dispositivos de prueba.
+
+#### Verificar que AdMob funciona
+
+1. Ejecuta la app en un dispositivo Android físico o emulador
+2. Deberías ver un banner publicitario en la parte inferior de la pantalla
+3. Con IDs de prueba, verás anuncios de ejemplo de Google
+4. En la consola de debug, busca mensajes como: `Ad loaded successfully`
+
 ## 🎯 Roadmap
 
-- [ ] Implementar Google AdMob para monetización
+- [x] Implementar Google AdMob para monetización
 - [ ] Agregar soporte para imágenes en mensajes
 - [ ] Implementar sistema de reportes de contenido
 - [ ] Agregar notificaciones push

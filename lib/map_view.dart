@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';  // Temporarily disabled
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:geolocator/geolocator.dart';
 import 'services/location_service.dart';
@@ -63,9 +63,9 @@ class _MapViewState extends State<MapView> {
   static const Duration _queryThrottle = Duration(seconds: 2); // Query throttle time (reduced for testing)
 
   // Ads
-  // BannerAd? _bannerAd;  // Temporarily disabled
-  // bool _isBannerAdReady = false;  // Temporarily disabled
-  bool _useMockAd = true; // Always use mock ad when AdMob is disabled
+  BannerAd? _bannerAd;
+  bool _isBannerAdReady = false;
+  bool _useMockAd = kIsWeb; // Use mock ad only on web, real ads on mobile
 
   @override
   void initState() {
@@ -73,35 +73,35 @@ class _MapViewState extends State<MapView> {
     _initializeUserId();
     _checkNicknameAndInit();
     
-    // AdMob temporarily disabled
-    setState(() {
-      _useMockAd = true;
-    });
+    // Load AdMob banner (only on mobile platforms)
+    if (!kIsWeb) {
+      _loadBannerAd();
+    }
   }
 
-  // void _loadBannerAd() {  // Temporarily disabled
-  //   _bannerAd = BannerAd(
-  //     adUnitId: defaultTargetPlatform == TargetPlatform.android
-  //         ? 'ca-app-pub-3940256099942544/6300978111' 
-  //         : 'ca-app-pub-3940256099942544/2934735716', // Test ID Android / iOS
-  //     request: const AdRequest(),
-  //     size: AdSize.banner,
-  //     listener: BannerAdListener(
-  //       onAdLoaded: (_) {
-  //         setState(() {
-  //           _isBannerAdReady = true;
-  //         });
-  //       },
-  //       onAdFailedToLoad: (ad, err) {
-  //         debugPrint('Failed to load a banner ad: ${err.message}');
-  //         _isBannerAdReady = false;
-  //         ad.dispose();
-  //       },
-  //     ),
-  //   );
-  //
-  //   _bannerAd?.load();
-  // }
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: defaultTargetPlatform == TargetPlatform.android
+          ? 'ca-app-pub-3940256099942544/6300978111' 
+          : 'ca-app-pub-3940256099942544/2934735716', // Test ID Android / iOS
+      request: const AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          setState(() {
+            _isBannerAdReady = true;
+          });
+        },
+        onAdFailedToLoad: (ad, err) {
+          debugPrint('Failed to load a banner ad: ${err.message}');
+          _isBannerAdReady = false;
+          ad.dispose();
+        },
+      ),
+    );
+
+    _bannerAd?.load();
+  }
 
   Future<void> _initializeUserId() async {
     // Get or create persistent user ID
@@ -171,7 +171,7 @@ class _MapViewState extends State<MapView> {
     _positionStream?.cancel();
     _messagesStream?.cancel();
     _localCleanupTimer?.cancel();
-    // _bannerAd?.dispose();  // Temporarily disabled
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -724,11 +724,16 @@ class _MapViewState extends State<MapView> {
           ),
           
           // Ad Banner
-          if (_useMockAd)
+          if (_isBannerAdReady || _useMockAd)
             Align(
               alignment: Alignment.bottomCenter,
-              child: _useMockAd 
-                ? Container(
+              child: _isBannerAdReady && !_useMockAd
+                ? SizedBox(
+                    width: _bannerAd!.size.width.toDouble(),
+                    height: _bannerAd!.size.height.toDouble(),
+                    child: AdWidget(ad: _bannerAd!),
+                  )
+                : Container(
                     width: 320,
                     height: 50,
                     decoration: BoxDecoration(
@@ -778,8 +783,7 @@ class _MapViewState extends State<MapView> {
                         ),
                       ],
                     ),
-                  )
-                : const SizedBox.shrink(), // AdMob disabled
+                  ),
             ),
         ],
       ),
