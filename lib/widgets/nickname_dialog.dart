@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/user_preferences.dart';
 import '../utils/avatar_generator.dart';
+import '../utils/content_filter.dart';
 
 class NicknameDialog extends StatefulWidget {
   const NicknameDialog({super.key});
@@ -55,6 +56,15 @@ class _NicknameDialogState extends State<NicknameDialog> {
       });
       return false;
     }
+    
+    // Check for offensive content
+    if (ContentFilter.containsBannedWords(nickname)) {
+      setState(() {
+        _errorText = 'El apodo no está permitido.';
+      });
+      return false;
+    }
+    
     setState(() {
       _errorText = null;
     });

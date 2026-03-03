@@ -2,15 +2,17 @@
 class ContentFilter {
   // Lista de palabras prohibidas (español e inglés)
   static const List<String> _bannedWords = [
-    // Español
-    'puto', 'puta', 'mierda', 'carajo', 'coño', 'verga',
-    'pendejo', 'idiota', 'imbécil', 'estúpido', 'tonto',
-    'marica', 'maricon', 'joto', 'culiao', 'concha',
+    // Español (General y Latam)
+    'puto', 'puta', 'mierda', 'carajo', 'coño', 'verga', 'pendejo', 'pendeja', 'idiota', 'imbécil',
+    'estúpido', 'estupida', 'tonto', 'tonta', 'marica', 'maricon', 'joto', 'culiao', 'concha',
+    'cabron', 'cabrona', 'ramera', 'zorra', 'perra', 'bastardo', 'malparido', 'gonorrea',
+    'huevon', 'weon', 'weona', 'ctm', 'conchetumare', 'culia', 'qlo', 'qla', 'xuxa', 'chucha',
+    'pinga', 'pito', 'polla', 'chocho', 'pucha', 'putamadre', 'hdp', 'hijueputa', 'hijodeputa',
     // Inglés
-    'fuck', 'shit', 'bitch', 'ass', 'damn', 'crap',
-    'dick', 'cock', 'pussy', 'bastard', 'slut',
-    // Términos ofensivos generales
-    'nazi', 'hitler', 'racista', 'racist',
+    'fuck', 'shit', 'bitch', 'ass', 'damn', 'crap', 'dick', 'cock', 'pussy', 'bastard', 'slut',
+    'whore', 'cunt', 'faggot', 'nigger', 'nigga', 'motherfucker', 'asshole', 'douchebag', 'retard',
+    // Términos ofensivos generales / Discriminación
+    'nazi', 'hitler', 'racista', 'racist', 'fascista', 'pedofilo', 'violador', 'terrorista',
   ];
 
   /// Verifica si el texto contiene palabras prohibidas
