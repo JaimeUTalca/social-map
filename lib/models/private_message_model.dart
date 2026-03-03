@@ -7,6 +7,7 @@ class PrivateMessageModel {
   final String receiverId;
   final DateTime timestamp;
   final String chatId;
+  final DateTime expiresAt;
 
   PrivateMessageModel({
     required this.id,
@@ -15,7 +16,21 @@ class PrivateMessageModel {
     required this.receiverId,
     required this.timestamp,
     required this.chatId,
+    required this.expiresAt,
   });
+
+  // Check if message is older than its expiration time
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+
+  // Get formatted time remaining e.g "09:59"
+  String get timeRemaining {
+    final remaining = expiresAt.difference(DateTime.now());
+    if (remaining.isNegative) return "00:00";
+    
+    final minutes = remaining.inMinutes.toString().padLeft(2, '0');
+    final seconds = (remaining.inSeconds % 60).toString().padLeft(2, '0');
+    return "$minutes:$seconds";
+  }
 
   // Factory constructor for Firestore
   factory PrivateMessageModel.fromFirestore(DocumentSnapshot doc) {
@@ -30,14 +45,18 @@ class PrivateMessageModel {
           ? (data['timestamp'] as Timestamp).toDate() 
           : DateTime.now(),
       chatId: data['chatId'] ?? '',
+      expiresAt: data['expiresAt'] != null 
+          ? (data['expiresAt'] as Timestamp).toDate() 
+          : DateTime.now().add(const Duration(minutes: 1)),
     );
   }
 
-  // Factory for Mock data/optimistic UI
+  // Factory for Mock data
   factory PrivateMessageModel.mock(String text, String senderId, String receiverId) {
-    // Generate consistant chat ID regardless of who sends
-    final ids = [senderId, receiverId]..sort();
-    final chatId = '${ids[0]}_${ids[1]}';
+    // Generates a mock chatId
+    final List<String> ids = [senderId, receiverId];
+    ids.sort();
+    final chatId = ids.join('_');
     
     return PrivateMessageModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -45,6 +64,7 @@ class PrivateMessageModel {
       senderId: senderId,
       receiverId: receiverId,
       timestamp: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(minutes: 1)),
       chatId: chatId,
     );
   }

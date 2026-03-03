@@ -17,9 +17,9 @@ class FirebaseService {
       longitude: position.longitude
     );
 
-    // Calculate expiration time (5 minutes from now)
+    // Calculate expiration time (1 minute from now)
     final expiresAt = Timestamp.fromDate(
-      DateTime.now().add(const Duration(minutes: 5))
+      DateTime.now().add(const Duration(minutes: 1))
     );
 
     debugPrint("Sending message to Firestore: $text at ${myLocation.data}");
@@ -196,6 +196,7 @@ class FirebaseService {
       'timestamp': FieldValue.serverTimestamp(),
       'chatId': chatId,
       'isRead': false, // Add unread status
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(minutes: 1))),
     }).then((_) => debugPrint("Private message sent successfully"))
       .catchError((e) => debugPrint("Error sending private message: $e"));
   }
@@ -226,6 +227,7 @@ class FirebaseService {
            
            return docs
                .map((doc) => PrivateMessageModel.fromFirestore(doc))
+               .where((msg) => !msg.isExpired) // Hide expired messages locally 
                .toList();
         });
   }
@@ -240,7 +242,10 @@ class FirebaseService {
         .where('receiverId', isEqualTo: currentUserId)
         .where('isRead', isEqualTo: false)
         .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+        .map((snapshot) {
+           final unreadDocs = snapshot.docs.map((d) => PrivateMessageModel.fromFirestore(d));
+           return unreadDocs.where((msg) => !msg.isExpired).length;
+        });
   }
 
   /// Marks all unread messages from a specific chat as read
@@ -264,5 +269,34 @@ class FirebaseService {
     
     await batch.commit();
     debugPrint("✅ Marked ${unreadMessages.docs.length} messages as read");
+  }
+
+  /// Actively deletes a private message from the Firestore database
+  Future<void> deletePrivateMessage(String chatId, String messageId) async {
+    try {
+      final docSnapshot = await _firestore
+          .collection('private_messages')
+          .where('chatId', isEqualTo: chatId)
+          .where('id', isEqualTo: messageId)
+          .limit(1)
+          .get();
+          
+      if (docSnapshot.docs.isNotEmpty) {
+        await docSnapshot.docs.first.reference.delete();
+        debugPrint("🗑️ Message $messageId physically deleted from Firebase database.");
+      }
+    } catch (e) {
+      debugPrint("Error deleting private message: $e");
+    }
+  }
+
+  /// Actively deletes a public map message from the Firestore database
+  Future<void> deletePublicMessage(String messageId) async {
+    try {
+      await _firestore.collection('mensajes').doc(messageId).delete();
+      debugPrint("🧹 Public message $messageId physically deleted from Firebase database.");
+    } catch (e) {
+      debugPrint("Error deleting public message: $e");
+    }
   }
 }

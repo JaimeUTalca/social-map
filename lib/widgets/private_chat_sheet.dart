@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/private_message_model.dart';
 import '../services/firebase_service.dart';
@@ -29,6 +30,33 @@ class _PrivateChatSheetState extends State<PrivateChatSheet> {
   
   // Optimistic messages list for instant UI feedback
   final List<PrivateMessageModel> _optimisticMessages = [];
+  
+  Timer? _countdownTimer;
+
+  // A reference to the latest list of real messages from Firebase
+  List<PrivateMessageModel> _latestRealMessages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Start a timer to force a redraw every second so counters tick down
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {}); // Redraw the UI
+        
+        // Cleanup expired optimistic messages just in case
+        _optimisticMessages.removeWhere((msg) => msg.isExpired);
+        
+        // Force physical deletion from Firebase of any expired real messages we see
+        // This is a collaborative cleanup where any active user helps keep the DB clean
+        for (var msg in _latestRealMessages) {
+          if (msg.isExpired) {
+            widget.firebaseService.deletePrivateMessage(msg.chatId, msg.id);
+          }
+        }
+      }
+    });
+  }
 
   void _sendMessage() async {
     final text = _messageController.text.trim();
@@ -68,6 +96,7 @@ class _PrivateChatSheetState extends State<PrivateChatSheet> {
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -161,6 +190,9 @@ class _PrivateChatSheetState extends State<PrivateChatSheet> {
                 // We assume snapshot data is descending (newest first based on our query)
                 List<PrivateMessageModel> realMessages = snapshot.data ?? [];
                 
+                // Keep reference for background deletion task
+                _latestRealMessages = realMessages;
+                
                 // Filter out optimistic messages that have been confirmed in Firebase
                 final currentOptimistic = _optimisticMessages.where((opt) => 
                   !realMessages.any((rm) => 
@@ -225,11 +257,37 @@ class _PrivateChatSheetState extends State<PrivateChatSheet> {
                                   bottomLeft: !isMe ? const Radius.circular(0) : const Radius.circular(16),
                                 ),
                               ),
-                              child: Text(
-                                msg.text,
-                                style: TextStyle(
-                                  color: isMe ? Colors.white : Colors.black87,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    msg.text,
+                                    style: TextStyle(
+                                      color: isMe ? Colors.white : Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  // Live Countdown Timer
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.timer_outlined,
+                                        size: 10,
+                                        color: isMe ? Colors.white70 : Colors.black54,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        msg.timeRemaining,
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: isMe ? Colors.white70 : Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                           ),

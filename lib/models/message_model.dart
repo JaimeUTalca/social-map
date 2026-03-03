@@ -10,6 +10,8 @@ class MessageModel {
   final String avatar;
   final String userId; // User who sent the message
 
+  final DateTime expiresAt;
+
   MessageModel({
     required this.id,
     required this.text,
@@ -18,9 +20,10 @@ class MessageModel {
     required this.nickname,
     required this.avatar,
     required this.userId,
+    required this.expiresAt,
   });
 
-  bool get isExpired => DateTime.now().difference(timestamp).inSeconds > 300;
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
 
   // Factory for Firestore
   factory MessageModel.fromFirestore(DocumentSnapshot doc) {
@@ -48,6 +51,9 @@ class MessageModel {
       nickname: data['nickname'] ?? 'Anónimo',
       avatar: data['avatar'] ?? '👤',
       userId: data['userId'] ?? '',
+      expiresAt: data['expiresAt'] != null 
+          ? (data['expiresAt'] as Timestamp).toDate() 
+          : ((data['timestamp'] as Timestamp).toDate()).add(const Duration(seconds: 60)),
     );
   }
 
@@ -61,6 +67,7 @@ class MessageModel {
       nickname: nickname,
       avatar: avatar,
       userId: userId,
+      expiresAt: DateTime.now().add(const Duration(seconds: 60)),
     );
   }
 }

@@ -67,6 +67,7 @@ class _MapViewState extends State<MapView> {
   BannerAd? _bannerAd;
   bool _isBannerAdReady = false;
   bool _useMockAd = kIsWeb; // Use mock ad only on web, real ads on mobile
+  String? _activeChatUserId; // Tracks which chat is currently open
 
   @override
   void initState() {
@@ -178,6 +179,16 @@ class _MapViewState extends State<MapView> {
 
   void _startLocalCleanup() {
     _localCleanupTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      
+      // Realizar la limpieza colaborativa: Borrar físicamente de Firebase los mensajes vigentes que acaban de expirar.
+      // Así mantenemos la BD limpia desde cualquier cliente conectado al mapa.
+      for (var msg in _messages) {
+        if (msg.isExpired) {
+          _firebaseService.deletePublicMessage(msg.id);
+        }
+      }
+
       setState(() {
          _messages.removeWhere((m) => m.isExpired);
          _optimisticMessages.removeWhere((m) => m.isExpired);
@@ -360,6 +371,11 @@ class _MapViewState extends State<MapView> {
     // Marcar como leídos los mensajes no leídos que este usuario nos ha enviado
     _firebaseService.markMessagesAsRead(_userId, otherUserId);
 
+    // Track that we are actively chatting with this user
+    setState(() {
+      _activeChatUserId = otherUserId;
+    });
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -376,7 +392,14 @@ class _MapViewState extends State<MapView> {
           firebaseService: _firebaseService,
         ),
       ),
-    );
+    ).whenComplete(() {
+      // Clear active chat tracking when bottom sheet is closed
+      if (mounted) {
+        setState(() {
+          _activeChatUserId = null;
+        });
+      }
+    });
   }
 
   @override
@@ -577,6 +600,13 @@ class _MapViewState extends State<MapView> {
                         child: StreamBuilder<int>(
                           stream: _firebaseService.getUnreadCount(_userId, user['id']),
                           builder: (context, snapshot) {
+                            // Don't show badge if we are currently chatting with this user
+                            if (_activeChatUserId == user['id']) {
+                               // Make sure their messages are marked as read while chat is open
+                               _firebaseService.markMessagesAsRead(_userId, user['id']);
+                               return const SizedBox.shrink();
+                            }
+                            
                             final count = snapshot.data ?? 0;
                             if (count == 0) return const SizedBox.shrink();
                             
