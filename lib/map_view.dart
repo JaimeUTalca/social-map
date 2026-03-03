@@ -178,13 +178,21 @@ class _MapViewState extends State<MapView> {
   }
 
   void _startLocalCleanup() {
+    int _tickCount = 0;
+    
     _localCleanupTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
+      
+      _tickCount++;
+      if (_tickCount % 10 == 0) { // Log every 10 seconds to not spam
+        debugPrint("🧹 Cleanup Loop Running. Tracking ${_messages.length} real msgs, ${_optimisticMessages.length} optimistic");
+      }
       
       // Realizar la limpieza colaborativa: Borrar físicamente de Firebase los mensajes vigentes que acaban de expirar.
       // Así mantenemos la BD limpia desde cualquier cliente conectado al mapa.
       for (var msg in _messages) {
         if (msg.isExpired) {
+          debugPrint("⏰ Message ${msg.id} expired! Ordering physical deletion from Firebase...");
           _firebaseService.deletePublicMessage(msg.id);
         }
       }

@@ -274,17 +274,8 @@ class FirebaseService {
   /// Actively deletes a private message from the Firestore database
   Future<void> deletePrivateMessage(String chatId, String messageId) async {
     try {
-      final docSnapshot = await _firestore
-          .collection('private_messages')
-          .where('chatId', isEqualTo: chatId)
-          .where('id', isEqualTo: messageId)
-          .limit(1)
-          .get();
-          
-      if (docSnapshot.docs.isNotEmpty) {
-        await docSnapshot.docs.first.reference.delete();
-        debugPrint("🗑️ Message $messageId physically deleted from Firebase database.");
-      }
+      await _firestore.collection('private_messages').doc(messageId).delete();
+      debugPrint("🗑️ Message $messageId physically deleted from Firebase database.");
     } catch (e) {
       debugPrint("Error deleting private message: $e");
     }
