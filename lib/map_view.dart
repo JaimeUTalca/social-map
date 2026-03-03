@@ -276,7 +276,7 @@ class _MapViewState extends State<MapView> {
        // Apply fuzzing for display (privacy)
        final fuzzed = LocationFuzzing.fuzzLocation(
          models.LatLng(pos.latitude, pos.longitude),
-         radiusMeters: 100.0,
+         radiusMeters: 300.0,
        );
        _userDisplayPosition = latlong.LatLng(fuzzed.latitude, fuzzed.longitude);
      });
@@ -427,7 +427,7 @@ class _MapViewState extends State<MapView> {
                   circles: [
                     CircleMarker(
                       point: _userDisplayPosition!,
-                      radius: 100, // 100m fuzzing radius
+                      radius: 300, // 300m fuzzing radius
                       useRadiusInMeter: true,
                       color: Colors.deepPurple.withOpacity(0.1),
                       borderColor: Colors.deepPurple.withOpacity(0.3),
@@ -487,7 +487,7 @@ class _MapViewState extends State<MapView> {
                     // Apply fuzzing to other users' positions for privacy
                     final fuzzed = LocationFuzzing.fuzzLocation(
                       models.LatLng(lat, lng),
-                      radiusMeters: 100.0,
+                      radiusMeters: 300.0,
                     );
                     
                     return Marker(
@@ -543,7 +543,7 @@ class _MapViewState extends State<MapView> {
                         final geopoint = position['geopoint'];
                         final fuzzed = LocationFuzzing.fuzzLocation(
                           models.LatLng(geopoint.latitude, geopoint.longitude),
-                          radiusMeters: 100.0,
+                          radiusMeters: 300.0,
                         );
                         userPositions[user['id']] = latlong.LatLng(fuzzed.latitude, fuzzed.longitude);
                       }
