@@ -12,6 +12,7 @@ import 'services/user_preferences.dart';
 import 'models/message_model.dart';
 import 'models/latlng.dart' as models;
 import 'widgets/nickname_dialog.dart';
+import 'widgets/private_chat_sheet.dart';
 import 'utils/content_filter.dart';
 import 'utils/location_fuzzing.dart';
 
@@ -276,6 +277,7 @@ class _MapViewState extends State<MapView> {
        // Apply fuzzing for display (privacy)
        final fuzzed = LocationFuzzing.fuzzLocation(
          models.LatLng(pos.latitude, pos.longitude),
+         _userId,
          radiusMeters: 300.0,
        );
        _userDisplayPosition = latlong.LatLng(fuzzed.latitude, fuzzed.longitude);
@@ -347,6 +349,34 @@ class _MapViewState extends State<MapView> {
       
       // Stream will automatically receive the update from Firebase
       // No need to manually refresh
+  }
+
+  void _openPrivateChat(String otherUserId, String otherUserNickname, String otherUserAvatar) {
+    if (_userNickname == null || _userAvatar == null) {
+      // User must set up their profile first
+      return;
+    }
+    
+    // Marcar como leídos los mensajes no leídos que este usuario nos ha enviado
+    _firebaseService.markMessagesAsRead(_userId, otherUserId);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: PrivateChatSheet(
+          currentUserId: _userId,
+          otherUserId: otherUserId,
+          otherUserNickname: otherUserNickname,
+          otherUserAvatar: otherUserAvatar,
+          firebaseService: _firebaseService,
+        ),
+      ),
+    );
   }
 
   @override
@@ -487,6 +517,7 @@ class _MapViewState extends State<MapView> {
                     // Apply fuzzing to other users' positions for privacy
                     final fuzzed = LocationFuzzing.fuzzLocation(
                       models.LatLng(lat, lng),
+                      user['id'], // Use other user ID for consistent random offset
                       radiusMeters: 300.0,
                     );
                     
@@ -494,36 +525,89 @@ class _MapViewState extends State<MapView> {
                       point: latlong.LatLng(fuzzed.latitude, fuzzed.longitude),
                       width: 70,
                       height: 90,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          // Avatar emoji
-                          Text(
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                          _openPrivateChat(
+                            user['id'],
+                            user['nickname'] ?? 'Usuario',
                             user['avatar'] ?? '👤',
-                            style: const TextStyle(fontSize: 40),
-                          ),
-                          // Nickname below avatar
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.blue,
-                              borderRadius: BorderRadius.circular(6),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8.0), // Extiende el área táctil
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Avatar emoji
+                            Text(
+                              user['avatar'] ?? '👤',
+                              style: const TextStyle(fontSize: 40),
                             ),
-                            child: Text(
-                              user['nickname'] ?? 'Usuario',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 9,
+                            // Nickname below avatar
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue,
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              child: Text(
+                                user['nickname'] ?? 'Usuario',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 9,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                       ),
                       ),
-                    );
-                  }).whereType<Marker>(),
+                      
+                      // Notification Badge
+                      Positioned(
+                        top: 0,
+                        right: 8,
+                        child: StreamBuilder<int>(
+                          stream: _firebaseService.getUnreadCount(_userId, user['id']),
+                          builder: (context, snapshot) {
+                            final count = snapshot.data ?? 0;
+                            if (count == 0) return const SizedBox.shrink();
+                            
+                            return Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 20,
+                                minHeight: 20,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  count > 9 ? '9+' : count.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).whereType<Marker>(),
                   
                   
                   // Message markers - displayed at user's fuzzed position
@@ -543,6 +627,7 @@ class _MapViewState extends State<MapView> {
                         final geopoint = position['geopoint'];
                         final fuzzed = LocationFuzzing.fuzzLocation(
                           models.LatLng(geopoint.latitude, geopoint.longitude),
+                          user['id'], // Provide the other user's id
                           radiusMeters: 300.0,
                         );
                         userPositions[user['id']] = latlong.LatLng(fuzzed.latitude, fuzzed.longitude);

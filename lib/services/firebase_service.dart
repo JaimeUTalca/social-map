@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geoflutterfire2/geoflutterfire2.dart';
 import 'package:flutter/foundation.dart';
 import '../models/message_model.dart';
+import '../models/private_message_model.dart';
 import '../models/latlng.dart';
 
 class FirebaseService {
@@ -172,7 +173,96 @@ class FirebaseService {
   /// Removes user presence when they disconnect
   Future<void> removeUserPresence(String userId) async {
     await _firestore.collection('users').doc(userId).delete()
-      .then((_) => debugPrint("User presence removed"))
       .catchError((e) => debugPrint("Error removing presence: $e"));
+  }
+
+  /// Generates a unique chat ID for two users
+  String getPrivateChatId(String userId1, String userId2) {
+    // Sort IDs alphabetically to ensure both users have the same chat room ID
+    final ids = [userId1, userId2]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
+
+  /// Sends a private message between two users
+  Future<void> sendPrivateMessage(String text, String senderId, String receiverId) async {
+    final chatId = getPrivateChatId(senderId, receiverId);
+    
+    debugPrint("Sending private message from $senderId to $receiverId (Chat: $chatId)");
+    
+    await _firestore.collection('private_messages').add({
+      'text': text,
+      'senderId': senderId,
+      'receiverId': receiverId,
+      'timestamp': FieldValue.serverTimestamp(),
+      'chatId': chatId,
+      'isRead': false, // Add unread status
+    }).then((_) => debugPrint("Private message sent successfully"))
+      .catchError((e) => debugPrint("Error sending private message: $e"));
+  }
+
+  /// Gets a stream of private messages between two users
+  Stream<List<PrivateMessageModel>> getPrivateMessages(String userId1, String userId2) {
+    final chatId = getPrivateChatId(userId1, userId2);
+    
+    debugPrint("📡 Setting up stream for private messages (Chat: $chatId)");
+    
+    // Removing orderBy('timestamp') to avoid requiring a composite index in Firestore
+    return _firestore
+        .collection('private_messages')
+        .where('chatId', isEqualTo: chatId)
+        .limit(100)
+        .snapshots()
+        .map((snapshot) {
+           debugPrint("📨 Received ${snapshot.docs.length} private messages");
+           final docs = snapshot.docs;
+           
+           // Sort locally on the device instead
+           docs.sort((a, b) {
+             final tA = a.data()['timestamp'] as Timestamp?;
+             final tB = b.data()['timestamp'] as Timestamp?;
+             if (tA == null || tB == null) return 0;
+             return tB.compareTo(tA); // descending (newest first)
+           });
+           
+           return docs
+               .map((doc) => PrivateMessageModel.fromFirestore(doc))
+               .toList();
+        });
+  }
+
+  /// Gets the count of unread messages sent TO the current user FROM a specific user
+  Stream<int> getUnreadCount(String currentUserId, String otherUserId) {
+    final chatId = getPrivateChatId(currentUserId, otherUserId);
+    
+    return _firestore
+        .collection('private_messages')
+        .where('chatId', isEqualTo: chatId)
+        .where('receiverId', isEqualTo: currentUserId)
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
+  /// Marks all unread messages from a specific chat as read
+  Future<void> markMessagesAsRead(String currentUserId, String otherUserId) async {
+    final chatId = getPrivateChatId(currentUserId, otherUserId);
+    
+    final unreadMessages = await _firestore
+        .collection('private_messages')
+        .where('chatId', isEqualTo: chatId)
+        .where('receiverId', isEqualTo: currentUserId)
+        .where('isRead', isEqualTo: false)
+        .get();
+        
+    if (unreadMessages.docs.isEmpty) return;
+    
+    // Use a batch to update all messages simultaneously
+    final batch = _firestore.batch();
+    for (var doc in unreadMessages.docs) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+    
+    await batch.commit();
+    debugPrint("✅ Marked ${unreadMessages.docs.length} messages as read");
   }
 }
