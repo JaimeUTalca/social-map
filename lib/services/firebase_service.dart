@@ -159,6 +159,10 @@ class FirebaseService {
                 'avatar': data['avatar'] ?? '👤',
                 'position': data['position'],
               });
+            } else {
+              // Collaborative cleanup: Zombie user detected (inactive for >30s)
+              // The client deletes it from the DB to keep the map clean for everyone
+              deleteUser(doc.id);
             }
           }
         } catch (e) {
@@ -288,6 +292,16 @@ class FirebaseService {
       debugPrint("🧹 Public message $messageId physically deleted from Firebase database.");
     } catch (e) {
       debugPrint("Error deleting public message: $e");
+    }
+  }
+
+  /// Deletes the user entirely from the active users collection
+  Future<void> deleteUser(String userId) async {
+    try {
+      await _firestore.collection('users').doc(userId).delete();
+      debugPrint("🚪 User $userId successfully removed from the database on app exit.");
+    } catch (e) {
+      debugPrint("Error deleting user $userId from database: $e");
     }
   }
 }

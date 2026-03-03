@@ -25,7 +25,7 @@ class MapView extends StatefulWidget {
   State<MapView> createState() => _MapViewState();
 }
 
-class _MapViewState extends State<MapView> {
+class _MapViewState extends State<MapView> with WidgetsBindingObserver {
   final MapController _mapController = MapController();
   final LocationService _locationService = LocationService();
   final FirebaseService _firebaseService = FirebaseService();
@@ -72,6 +72,7 @@ class _MapViewState extends State<MapView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Escuchar ciclo de vida de app
     _initializeUserId();
     _checkNicknameAndInit();
     
@@ -170,11 +171,22 @@ class _MapViewState extends State<MapView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Limpiar listener
     _positionStream?.cancel();
     _messagesStream?.cancel();
     _localCleanupTimer?.cancel();
     _bannerAd?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Remove user trace from database when closing application
+    if (state == AppLifecycleState.detached || state == AppLifecycleState.hidden) {
+      debugPrint("📱 App is closing! Removing user $_userId from Firebase...");
+      _firebaseService.deleteUser(_userId);
+    }
   }
 
   void _startLocalCleanup() {
