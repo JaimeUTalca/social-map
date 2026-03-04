@@ -2,16 +2,31 @@ import 'dart:math';
 
 class AvatarGenerator {
   static final List<String> _avatars = [
-    '👨‍🚀', // Astronaut (male)
-    '👩‍🚀', // Astronaut (female)
-    '👨‍💼', // Business person (male)
-    '👩‍💼', // Business person (female)
-    '👨‍🎓', // Student (male)
-    '👩‍🎓', // Student (female)
-    '👨‍🎨', // Artist (male)
-    '👩‍🎨', // Artist (female)
-    '👨‍⚕️', // Doctor (male)
-    '👩‍⚕️', // Doctor (female)
+    '👽', // Alien
+    '👾', // Alien Monster
+    '👻', // Ghost
+    '🤖', // Robot
+    '🦊', // Fox
+    '🐱', // Cat
+    '🐼', // Panda
+    '🐨', // Koala
+    '🐸', // Frog
+    '🐵', // Monkey
+    '🦄', // Unicorn
+    '🐙', // Octopus
+    '🦖', // T-Rex
+    '🐢', // Turtle
+    '🦉', // Owl
+    '🦝', // Raccoon
+    '😎', // Cool Face
+    '🤠', // Cowboy
+    '🥸', // Disguised Face
+    '🤡', // Clown
+    '🧑‍🚀', // Astronaut (gender neutral)
+    '🦸', // Superhero (gender neutral)
+    '🧛', // Vampire (gender neutral)
+    '🧟', // Zombie (gender neutral)
+    '🍀', // Clover
   ];
 
   static String getRandomAvatar() {

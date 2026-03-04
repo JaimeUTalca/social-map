@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/private_message_model.dart';
 import '../services/firebase_service.dart';
+import '../services/user_preferences.dart';
 import '../utils/content_filter.dart';
 
 class PrivateChatSheet extends StatefulWidget {
@@ -159,6 +160,36 @@ class _PrivateChatSheetState extends State<PrivateChatSheet> {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.block, color: Colors.red),
+                  tooltip: 'Bloquear usuario',
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('¿Bloquear usuario?'),
+                        content: Text(
+                          'No verás los mensajes de ${widget.otherUserNickname} ni en el mapa ni en el chat.\n\nPuedes desbloquearlo en cualquier momento tocando su avatar gris.'
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(false),
+                            child: const Text('Cancelar'),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                            onPressed: () => Navigator.of(ctx).pop(true),
+                            child: const Text('Bloquear', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true && mounted) {
+                      await UserPreferences.blockUser(widget.otherUserId);
+                      if (mounted) Navigator.of(context).pop('blocked');
+                    }
+                  },
                 ),
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.grey),

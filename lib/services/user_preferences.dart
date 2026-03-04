@@ -72,4 +72,32 @@ class UserPreferences {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }
+
+  // -- Blocked Users Management --
+  static const String _blockedUsersKey = 'blocked_users';
+
+  /// Returns the set of blocked user IDs
+  static Future<Set<String>> getBlockedUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_blockedUsersKey) ?? [];
+    return list.toSet();
+  }
+
+  /// Blocks a user by their ID
+  static Future<void> blockUser(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final blocked = prefs.getStringList(_blockedUsersKey) ?? [];
+    if (!blocked.contains(userId)) {
+      blocked.add(userId);
+      await prefs.setStringList(_blockedUsersKey, blocked);
+    }
+  }
+
+  /// Unblocks a user by their ID
+  static Future<void> unblockUser(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final blocked = prefs.getStringList(_blockedUsersKey) ?? [];
+    blocked.remove(userId);
+    await prefs.setStringList(_blockedUsersKey, blocked);
+  }
 }

@@ -68,6 +68,7 @@ class _MapViewState extends State<MapView> with WidgetsBindingObserver {
   bool _isBannerAdReady = false;
   bool _useMockAd = kIsWeb; // Use mock ad only on web, real ads on mobile
   String? _activeChatUserId; // Tracks which chat is currently open
+  Set<String> _blockedUsers = {}; // Local list of blocked user IDs
 
   @override
   void initState() {
@@ -136,6 +137,8 @@ class _MapViewState extends State<MapView> with WidgetsBindingObserver {
     // Load user data
     _userNickname = await UserPreferences.getNickname();
     _userAvatar = await UserPreferences.getAvatar();
+    final blocked = await UserPreferences.getBlockedUsers();
+    if (mounted) setState(() => _blockedUsers = blocked);
     
     // Initialize location
     _initializeLocation();
@@ -412,20 +415,25 @@ class _MapViewState extends State<MapView> with WidgetsBindingObserver {
           firebaseService: _firebaseService,
         ),
       ),
-    ).whenComplete(() {
+    ).whenComplete(() async {
       // Clear active chat tracking when bottom sheet is closed
       if (mounted) {
         setState(() {
           _activeChatUserId = null;
         });
+        // Reload blocked users list in case the user blocked someone from the chat
+        final blocked = await UserPreferences.getBlockedUsers();
+        if (mounted) setState(() => _blockedUsers = blocked);
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Combine all messages for display
-    final allMessages = [..._messages, ..._optimisticMessages];
+    // Combine all messages for display, filtering out blocked users' messages
+    final allMessages = [..._messages, ..._optimisticMessages]
+        .where((m) => !_blockedUsers.contains(m.userId))
+        .toList();
     
     return Scaffold(
       body: Stack(
@@ -564,6 +572,8 @@ class _MapViewState extends State<MapView> with WidgetsBindingObserver {
                       radiusMeters: 300.0,
                     );
                     
+                    final isBlocked = _blockedUsers.contains(user['id']);
+                    
                     return Marker(
                       point: latlong.LatLng(fuzzed.latitude, fuzzed.longitude),
                       width: 70,
@@ -574,90 +584,130 @@ class _MapViewState extends State<MapView> with WidgetsBindingObserver {
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () {
-                          _openPrivateChat(
-                            user['id'],
-                            user['nickname'] ?? 'Usuario',
-                            user['avatar'] ?? '👤',
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8.0), // Extiende el área táctil
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Avatar emoji
-                            Text(
-                              user['avatar'] ?? '👤',
-                              style: const TextStyle(fontSize: 40),
-                            ),
-                            // Nickname below avatar
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.blue,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                user['nickname'] ?? 'Usuario',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 9,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                       ),
-                      ),
-                      
-                      // Notification Badge
-                      Positioned(
-                        top: 0,
-                        right: 8,
-                        child: StreamBuilder<int>(
-                          stream: _firebaseService.getUnreadCount(_userId, user['id']),
-                          builder: (context, snapshot) {
-                            // Don't show badge if we are currently chatting with this user
-                            if (_activeChatUserId == user['id']) {
-                               // Make sure their messages are marked as read while chat is open
-                               _firebaseService.markMessagesAsRead(_userId, user['id']);
-                               return const SizedBox.shrink();
-                            }
-                            
-                            final count = snapshot.data ?? 0;
-                            if (count == 0) return const SizedBox.shrink();
-                            
-                            return Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 20,
-                                minHeight: 20,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  count > 9 ? '9+' : count.toString(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
+                              if (isBlocked) {
+                                // Show unblock dialog for blocked users
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Usuario bloqueado'),
+                                    content: Text('¿Deseas desbloquear a ${user["nickname"] ?? "Usuario"} y volver a recibir sus mensajes?'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.of(ctx).pop(),
+                                        child: const Text('No'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () async {
+                                          await UserPreferences.unblockUser(user['id']);
+                                          final newBlocked = await UserPreferences.getBlockedUsers();
+                                          if (mounted) setState(() => _blockedUsers = newBlocked);
+                                          if (ctx.mounted) Navigator.of(ctx).pop();
+                                        },
+                                        child: const Text('Desbloquear'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              } else {
+                                _openPrivateChat(
+                                  user['id'],
+                                  user['nickname'] ?? 'Usuario',
+                                  user['avatar'] ?? '👤',
+                                );
+                              }
+                            },
+                            child: Opacity(
+                              opacity: isBlocked ? 0.5 : 1.0,
+                              child: ColorFiltered(
+                                colorFilter: isBlocked
+                                  ? const ColorFilter.matrix([
+                                      0.2126, 0.7152, 0.0722, 0, 0,
+                                      0.2126, 0.7152, 0.0722, 0, 0,
+                                      0.2126, 0.7152, 0.0722, 0, 0,
+                                      0,      0,      0,      1, 0,
+                                    ])
+                                  : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Avatar emoji
+                                      Text(
+                                        user['avatar'] ?? '👤',
+                                        style: const TextStyle(fontSize: 40),
+                                      ),
+                                      // Nickname below avatar
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: isBlocked ? Colors.grey.shade500 : Colors.blue,
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          user['nickname'] ?? 'Usuario',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 9,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                          
+                          // Notification Badge (only for non-blocked users)
+                          if (!isBlocked)
+                          Positioned(
+                            top: 0,
+                            right: 8,
+                            child: StreamBuilder<int>(
+                              stream: _firebaseService.getUnreadCount(_userId, user['id']),
+                              builder: (context, snapshot) {
+                                // Don't show badge if we are currently chatting with this user
+                                if (_activeChatUserId == user['id']) {
+                                   // Make sure their messages are marked as read while chat is open
+                                   _firebaseService.markMessagesAsRead(_userId, user['id']);
+                                   return const SizedBox.shrink();
+                                }
+                                
+                                final count = snapshot.data ?? 0;
+                                if (count == 0) return const SizedBox.shrink();
+                                
+                                return Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 20,
+                                    minHeight: 20,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      count > 9 ? '9+' : count.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }).whereType<Marker>(),
+                    );
+                  }).whereType<Marker>(),
                   
                   
                   // Message markers - displayed at user's fuzzed position
